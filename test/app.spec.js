@@ -1,4 +1,4 @@
-/* eslint-disable strict */
+
 const app = require('../src/app');
 
 describe('App', () =>{

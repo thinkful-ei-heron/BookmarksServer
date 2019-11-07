@@ -3,24 +3,32 @@ const express = require('express');
 const uuid = require('uuid/v4');
 const logger = require('./logger');
 const bookmarkRouter = express.Router();
-const bookmarks = require('./bookmarkData');
+// const bookmarks = require('./bookmarkData');
+const BookmarkService = require('./bookmarkService');
 
-bookmarkRouter.get('/', (req, res) =>{
-  res.json(bookmarks);
+
+bookmarkRouter.get('/', (req, res, next) =>{
+  const knexInstance = req.app.get('db');
+  BookmarkService.getAllBookmarks(knexInstance)
+    .then(bookmarks => {
+      res.json(bookmarks);
+    })
+    .catch(next);
 });
 
-bookmarkRouter.get('/:id', (req, res) =>{
+bookmarkRouter.get('/:id', (req, res, next) =>{
   const { id }= req.params;
-  // eslint-disable-next-line eqeqeq
-  const bookmark = bookmarks.find(b => b.id == id);
+  const knexInstance = req.app.get('db');
 
-  if(!bookmark){
-    logger.error(`Bookmark with id ${id} not found,`);
-    return res
-      .status(404)
-      .send('Bookmark not found');
-  }
-  res.json(bookmark);
+  BookmarkService
+    .getById(knexInstance, id)
+    .then(bookmark =>{
+      if(!bookmark){
+        return res.status(400).json({ error: {message: 'Bookmark does not exist.'}});
+      }
+      return res.json(bookmark);
+    })
+    .catch(next);
 });
 
 bookmarkRouter.post('/', (req,res)=>{
