@@ -5,6 +5,7 @@ const logger = require('./logger');
 const bookmarkRouter = express.Router();
 const BookmarkService = require('./bookmarkService');
 const xss = require('xss');
+const path = require('path');
 const jsonParser = express.json();
 
 
@@ -15,6 +16,9 @@ const serializeBookmark = bookmark => ({
   description: xss(bookmark.description),
   rating: bookmark.rating,
 });
+
+
+
 
 bookmarkRouter.get('/', (req, res, next) =>{
   const knexInstance = req.app.get('db');
@@ -61,12 +65,15 @@ bookmarkRouter.post('/', jsonParser, (req,res, next)=>{
 
   BookmarkService.insertBookmark(knexInstance, newBookmark)
     .then(bookmark =>{
-      res.status(201).location(`/bookmarks/${bookmark.id}`).json({
-        id: bookmark.id,
-        title: xss(bookmark.title),
-        url: xss(bookmark.url),
-        description: xss(bookmark.description),
-        rating: bookmark.rating,
+      res
+        .status(201)
+        .location( path.posix.join(req.originalUrl, `/${bookmark.id}`))
+        .json({
+          id: bookmark.id,
+          title: xss(bookmark.title),
+          url: xss(bookmark.url),
+          description: xss(bookmark.description),
+          rating: bookmark.rating,
       });
     })
     .catch(next);
@@ -75,7 +82,6 @@ bookmarkRouter.post('/', jsonParser, (req,res, next)=>{
 bookmarkRouter.delete('/:id', (req, res, next) =>{
   const id= req.params.id;
   const knexInstance = req.app.get('db');
-  console.log(id);
 
   BookmarkService
     .deleteBookmark(knexInstance, id)
@@ -84,5 +90,49 @@ bookmarkRouter.delete('/:id', (req, res, next) =>{
     })
     .catch(next);
 });
+
+
+bookmarkRouter.patch('/:id', jsonParser, (req,res, next) =>{
+  const id= req.params.id;
+  const knexInstance = req.app.get('db');
+  const{ title, url, description, rating } = req.body;
+  const updatedBookmark = {title, url, description, rating};
+
+  const numberOfValues = Object.values(updatedBookmark).filter(Boolean).length;
+    if (numberOfValues === 0) {
+      return res.status(400).json({
+        error: {
+          message: "Request body must contain title, and url, and rating."
+        }
+      });
+    }
+
+    BookmarkService.updateBookmark(knexInstance, id, updatedBookmark)
+      .then(() =>{
+        return res.status(204).end();
+      })
+      .catch(next);
+});
+
+
+bookmarkRouter
+  .route('/:id')
+  .all((req, res, next) =>{
+    const id = req.params.id;
+    const knexInstance = req.app.get('db');
+    BookmarkService
+      .getById(knexInstance, id)
+      .then(bookmark =>{
+        if(!bookmark){
+          return res.status(404).json({
+            error: { message: `Bookmark doesn't exist`}
+          });
+        }
+        res.bookmark = bookmark;
+        next();
+      })
+      .catch(next);
+  });
+
 
 module.exports = bookmarkRouter;
